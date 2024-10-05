@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "mytime.cli": {
+      "commandName": "Project",
+      "commandLineArgs": "get-timerecords"
+    }
+  }
+}
