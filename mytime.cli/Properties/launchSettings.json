@@ -2,7 +2,7 @@
   "profiles": {
     "mytime.cli": {
       "commandName": "Project",
-      "commandLineArgs": "get-timerecords"
+      "commandLineArgs": "get-my-week"
     }
   }
 }

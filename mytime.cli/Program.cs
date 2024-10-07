@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using popilot;
 using Serilog;
 using Spectre.Console;
 using STP.UserManagement.Identity.Client;
@@ -98,5 +99,17 @@ static IHostBuilder CreateHostBuilder()
 			{
 				client.BaseAddress = new Uri(config["TimeRecordsApi"]!);
 			}).AddHttpMessageHandler<SetAccessToken>();
+
+			services.Configure<AzureDevOpsOptions>(o =>
+			{
+				o.BaseUrl = new Uri(config["AzureDevOps"]!);
+				o.TenantId = config["MicrosoftTenantId"]!;
+				o.ClientId = config["AzureDevOpsClientId"]!;
+				o.Username = config["AzureDevOpsUser2"];
+				o.Password = config["AzureDevOpsPassword"];
+				o.DefaultProject = config["DefaultProject"];
+				o.DefaultTeam = config["DefaultTeam"];
+			});
+			services.AddScoped<AzureDevOps>();
 		});
 }
