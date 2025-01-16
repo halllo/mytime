@@ -13,11 +13,18 @@ namespace mytime.cli.Verbs
 		public async Task Do(ILogger<MyWeek> logger, Me my, TimeRecordsClient timeRecordsClient, AzureDevOps azureDevOps, IConfiguration config)
 		{
 			var capacityAndWork = new CapacityAndWork(azureDevOps);
+
 			var currentSprint = await capacityAndWork.OfCurrentSprint(
 				project: null,
 				team: null,
 				workItemFilter: i => "Task&Bug".Contains(i.Type),
 				workerDetector: WorkerDetector.AssignedTo);
+
+			//todo: load my data from multiple teams
+
+			//todo: load my data from TimeRecordsClient
+
+			//todo: consolidate all data into a sprint time frame
 
 			Console.WriteLine($"{currentSprint.Path} ({currentSprint.Start}-{currentSprint.End})");
 
