@@ -24,7 +24,7 @@ namespace mytime.cli.Verbs
 							project: source.Project,
 							team: source.Team,
 							workItemFilter: i => "Task&Bug".Contains(i.Type),
-							workerDetector: WorkerDetector.AssignedTo);
+							workerDetector: WorkerDetector.ChangedByAssignedTo);
 
 						return new
 						{
