@@ -42,7 +42,7 @@ namespace mytime.cli.Verbs
 						var thisWeek = (await timeRecordsClient.Get(TimeRecordsClient.TimeRange.ThisWeek, await my.Id())).OrderBy(t => t.Date);
 						var lastWeek = (await timeRecordsClient.Get(TimeRecordsClient.TimeRange.LastWeek, await my.Id())).OrderBy(t => t.Date);
 						var timeRecords = Enumerable.Concat(lastWeek, thisWeek).ToArray();
-						
+
 						return new
 						{
 							name = source.TimeRecords ?? "",
@@ -65,11 +65,11 @@ namespace mytime.cli.Verbs
 				throw new ArgumentException("No days recognized.");
 			}
 
-			Console.WriteLine($"{days.First()}-{days.Last()})");
+			Console.WriteLine($"{days.First()}-{days.Last()}");
 
 			var table = new Table();
 			table.ShowRowSeparators();
-			table.AddColumn("[gray]\nΔCapacity ΔCompletedWork ΔRemainingWork[/]");
+			table.AddColumn("[gray]\nCapacity ΔCompletedWork ΔRemainingWork[/]");
 			table.BorderColor(Color.Grey);
 
 			foreach (var day in days)
@@ -103,21 +103,42 @@ namespace mytime.cli.Verbs
 				}
 				else if (universalSource.myTimeRecords != null)
 				{
+					void addRow(string label, IReadOnlyList<TimeRecordsClient.TimeRecordsResponse.TimeRecordDto> timeRecords, decimal? capacity)
+					{
+						var myDays = days.Select(day => timeRecords.Where(tr => DateOnly.FromDateTime(tr.Date.DateTime) == day).ToArray()).ToArray();
+						var dayCount = myDays.Where(d => d.Any()).Count();
+						var actualTime = myDays.SelectMany(d => d).Sum(d => TimeSpan.FromSeconds(d.DurationInSeconds).TotalHours);
+						var expectedTime = dayCount * (double)(capacity ?? 0);
+						table.AddRow([
+							new Markup(capacity != null
+								? $"{label} ({expectedTime} {(actualTime - expectedTime).Against(0)})"
+								: $"[gray]{label} ({actualTime - expectedTime})[/]"),
+							..myDays
+								.Select(day => day switch
+								{
+									[] => new Markup(" "),
+									_ => new Markup($"{day.Sum(d => TimeSpan.FromSeconds(d.DurationInSeconds).TotalHours).Against(capacity)}"),
+								})
+								.ToArray()
+						]);
+					}
+
 					var myTimeRecords = universalSource.myTimeRecords;
-					var myDays = days.Select(day => myTimeRecords.Where(tr => DateOnly.FromDateTime(tr.Date.DateTime) == day).ToArray()).ToArray();
-					var dayCount = myDays.Where(d => d.Any()).Count();
-					var actualTime = myDays.SelectMany(d => d).Sum(d => TimeSpan.FromSeconds(d.DurationInSeconds).TotalHours);
-					var expectedTime = dayCount * (double)(universalSource.myTimeRecordsCapacity ?? 0);
-					table.AddRow([
-						new Markup($"{universalSource.name} ({expectedTime} {(actualTime - expectedTime).Against(0)})"),
-						..myDays
-							.Select(day => day switch
-							{
-								[] => new Markup(" "),
-								_ => new Markup($"{day.Sum(d => TimeSpan.FromSeconds(d.DurationInSeconds).TotalHours).Against(universalSource.myTimeRecordsCapacity)}"),
-							})
-							.ToArray()
-					]);
+					addRow(universalSource.name, myTimeRecords, universalSource.myTimeRecordsCapacity);
+
+					var myTimeRecordGroups = myTimeRecords
+						.GroupBy(tr => new TimeRecordBucket
+						(
+							Matter: tr.KmsMatterTimeEntry?.MatterDescription,
+							Management: tr.KmsManagementTimeEntry != null ? "Management" : null,
+							Activity: tr.KmsMatterTimeEntry?.ActivityTypeName ?? tr.KmsManagementTimeEntry?.ActivityTypeName
+						))
+						.OrderBy(g => g.Key.ToString());
+
+					foreach (var timeRecordGroup in myTimeRecordGroups)
+					{
+						addRow(timeRecordGroup.Key.AsLabel(), timeRecordGroup.ToList(), null);
+					}
 				}
 				else throw new ArgumentOutOfRangeException();
 			}
@@ -127,20 +148,22 @@ namespace mytime.cli.Verbs
 	}
 	static class CapacitiedFormatting
 	{
+		private static string Colored(double? value, string color) => $"[{color}]{value}[/]";
+		
 		public static string Against(this double actual, decimal? capacity) => Against((double?)actual, (double?)capacity);
 		public static string Against(this double? actual, double? capacity)
 		{
 			if (actual == null) return string.Empty;
-			else if (actual >= (capacity ?? 0)) return $"[green]{actual}[/]";
-			else if (actual < (capacity ?? 0)) return $"[red]{actual}[/]";
+			else if (actual >= (capacity ?? 0)) return capacity != null ? Colored(actual, "green") : Colored(actual, "gray");
+			else if (actual < (capacity ?? 0)) return capacity != null ? Colored(actual, "red") : Colored(actual, "gray");
 			else return string.Empty;
 		}
 
 		public static string AgainstInverse(this double? actual, double? capacity)
 		{
 			if (actual == null) return string.Empty;
-			else if (actual * -1 >= (capacity ?? 0)) return $"[green]{actual}[/]";
-			else if (actual * -1 < (capacity ?? 0)) return $"[red]{actual}[/]";
+			else if (actual * -1 >= (capacity ?? 0)) return capacity != null ? Colored(actual, "green") : Colored(actual, "gray");
+			else if (actual * -1 < (capacity ?? 0)) return capacity != null ? Colored(actual, "red") : Colored(actual, "gray");
 			else return string.Empty;
 		}
 	}
@@ -154,5 +177,10 @@ namespace mytime.cli.Verbs
 
 		public bool IsAzureDevOpsProject => Project != null && Team != null;
 		public bool IsTimeTracking => TimeRecords != null && Capacity != null;
+	}
+
+	record TimeRecordBucket(string? Matter, string? Management, string? Activity)
+	{
+		public string AsLabel() => $"{Matter} {Management} {Activity}".Replace("  ", " ").Trim();
 	}
 }
